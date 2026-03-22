@@ -44,7 +44,7 @@ public class SimuladorSO {
 
     /**
      * Agrega un nuevo usuario al sistema.
-     * * @param idUsuario El identificador del usuario.
+     * @param idUsuario El identificador del usuario.
      * @param tipo El tipo o nivel de prioridad del usuario.
      */
     public void agregarUsuario(String idUsuario, String tipo) {
@@ -56,7 +56,7 @@ public class SimuladorSO {
 
     /**
      * Carga usuarios desde un archivo CSV con formato "usuario, tipo".
-     * * @param rutaArchivo La ruta absoluta o relativa del archivo CSV.
+     * @param rutaArchivo La ruta absoluta o relativa del archivo CSV.
      * @return true si se cargó correctamente, false en caso de error.
      */
     public boolean cargarUsuariosDesdeCSV(String rutaArchivo) {
@@ -78,7 +78,7 @@ public class SimuladorSO {
 
     /**
      * Elimina un usuario del sistema y todos los documentos que no estén en la cola.
-     * * @param idUsuario El ID del usuario a eliminar.
+     * @param idUsuario El ID del usuario a eliminar.
      * @return true si se eliminó exitosamente.
      */
     public boolean eliminarUsuario(String idUsuario) {
@@ -98,7 +98,7 @@ public class SimuladorSO {
 
     /**
      * Busca un usuario registrado en el sistema por su ID.
-     * * @param idUsuario El ID a buscar.
+     * @param idUsuario El ID a buscar.
      * @return El objeto Usuario, o null si no existe.
      */
     public Usuario buscarUsuario(String idUsuario) {
@@ -111,32 +111,38 @@ public class SimuladorSO {
     }
 
     /**
-     * Envía un documento a la cola de impresión. Calcula la prioridad si es requerida,
+     * Envía un documento a la cola de impresión. Calcula la prioridad 
      * lo inserta en el Montículo Binario y registra su etiqueta en la Tabla Hash.
-     * * @param idUsuario El ID del usuario que envía el documento.
+     * @param idUsuario El ID del usuario que envía el documento.
      * @param doc El documento a imprimir.
      */
     public void enviarAImpresion(String idUsuario, Documento doc) {
         Usuario u = buscarUsuario(idUsuario);
         if (u == null) return;
 
+        // 1. Avanzamos el reloj para que cada documento tenga un tiempo base único
+        tickReloj();
         int etiquetaAsignada = this.reloj;
 
-        // Si es prioritario, alteramos la etiqueta de tiempo según el tipo de usuario
-        if (doc.isEsPrioritario()) {
+        // 2. Alteramos la etiqueta de tiempo según el tipo de usuario.
+        // Como es un Min-Heap, mientras MENOR (o más negativo) sea el número, MAYOR prioridad tiene.
+        if (u.getTipo() != null) {
             switch (u.getTipo().toLowerCase()) {
                 case "prioridad_alta":
-                    etiquetaAsignada = Math.max(0, this.reloj - 100); // Salta en el tiempo
+                    etiquetaAsignada -= 1000; // Gran salto hacia la raíz
                     break;
                 case "prioridad_media":
-                    etiquetaAsignada = Math.max(0, this.reloj - 50);
+                    etiquetaAsignada -= 500;  // Salto medio
                     break;
                 case "prioridad_baja":
-                    etiquetaAsignada = Math.max(0, this.reloj - 10);
+                    etiquetaAsignada -= 100;  // Salto pequeño
                     break;
-                default:
-                    etiquetaAsignada = Math.max(0, this.reloj - 5);
             }
+        }
+
+        // 3. Si se marcó como prioritario manualmente en la interfaz, le damos un extra
+        if (doc.isEsPrioritario()) {
+            etiquetaAsignada -= 50;
         }
 
         // Crear registro y encolar (Montículo)
@@ -147,12 +153,12 @@ public class SimuladorSO {
         tablaRegistros.insertar(idUsuario, doc, etiquetaAsignada);
 
         // Eliminar de la lista de documentos "no enviados" del usuario
-        u.eliminarDocumento(doc.getNombre());
+        // u.eliminarDocumento(doc.getNombre()); // Descomenta esto si manejas listas de docs internos en el usuario
     }
 
     /**
      * Libera la impresora sacando el documento con mayor prioridad de la cola.
-     * * @return El registro impreso, o null si la cola está vacía.
+     * @return El registro impreso, o null si la cola está vacía.
      */
     public RegistroImpresion liberarImpresora() {
         if (colaImpresion.estaVacio()) {
@@ -178,30 +184,31 @@ public class SimuladorSO {
     public TablaDispersion getTablaRegistros() { return tablaRegistros; }
     public int getReloj() { return reloj; }
     
-public boolean cancelarImpresion(String idUsuario, String nombreDoc) {
+    /**
+     * Cancela un documento buscando su nombre y forzando su eliminación del montículo.
+     */
+    public boolean cancelarImpresion(String idUsuario, String nombreDoc) {
         
         /* * Según la rúbrica del proyecto: "el proceso de eliminación consistirá en cambiar 
          * la etiqueta de tiempo del registro correspondiente, de forma que sea el de mayor 
          * prioridad (etiqueta de tiempo más pequeña) en la cola, por lo tanto, debe ser movido 
-         * al inicio de la cola y luego eliminado"[cite: 50].
+         * al inicio de la cola y luego eliminado"
          */
          
         modelos.RegistroImpresion[] arreglo = colaImpresion.getArreglo();
         int tamano = colaImpresion.getTamanoActual();
         
         // 1. Buscamos el documento en el montículo
-        // Nota: Si ya implementaste la Tabla Hash para ubicar el índice en O(1) según la rúbrica, 
-        // reemplaza este 'for' por tu búsqueda en el Hash[cite: 54].
         for (int i = 0; i < tamano; i++) {
             if (arreglo[i].getDocumento().getNombre().equals(nombreDoc)) {
                 
-                // 2. Forzamos la máxima prioridad dándole un valor negativo extremo [cite: 50]
+                // 2. Forzamos la máxima prioridad dándole un valor negativo extremo
                 arreglo[i].setEtiquetaTiempo(-999999); 
                 
-                // 3. Lo hacemos flotar hasta la raíz del árbol (índice 0) [cite: 50]
+                // 3. Lo hacemos flotar hasta la raíz del árbol (índice 0)
                 colaImpresion.flotar(i); 
                 
-                // 4. Usamos el método nativo del montículo para extraer la raíz (eliminar_min) [cite: 50, 51]
+                // 4. Usamos el método nativo del montículo para extraer la raíz (eliminar_min)
                 colaImpresion.eliminarMin(); 
                 
                 return true; // Documento cancelado exitosamente

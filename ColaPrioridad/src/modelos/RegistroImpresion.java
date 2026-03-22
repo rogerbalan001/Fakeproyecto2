@@ -68,6 +68,6 @@ public class RegistroImpresion {
      */
     @Override
     public String toString() {
-        return "[" + etiquetaTiempo + "] " + documento.getNombre() + "." + documento.getTipo();
+        return "[" + etiquetaTiempo + "] " + documento.getNombre() + ".";
     }
 }
